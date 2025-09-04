@@ -168,7 +168,7 @@ class Subscription(models.Model):
 
 
 class User(AbstractUser):
-    company = models.ForeignKey("Company", on_delete=models.CASCADE, related_name="users")
+    company = models.ForeignKey("company.Company", on_delete=models.CASCADE, related_name="users")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
