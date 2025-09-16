@@ -9,6 +9,10 @@ import stripe
 from notes_api import settings 
 
 
+
+
+
+
 class Company(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
@@ -19,7 +23,11 @@ class Company(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+    notification_email = models.EmailField(null=True,blank=True)
+    notify_slack = models.BooleanField(default=False)
+    slack_webhook_url = models.URLField(null=True, blank = True)
+    notification_days_before = models.PositiveIntegerField(default=7)
+
     class Meta:
         db_table = "companies"
         ordering = ["name"]
@@ -101,8 +109,8 @@ class Subscription(models.Model):
         ('suspended', 'Suspended'),
     ]
     
-    company = models.ForeignKey("Company", on_delete=models.CASCADE, related_name="subscriptions")
-    plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="subscriptions")
+    company = models.ForeignKey("Company", on_delete=models.CASCADE, related_name="subscribedcompanies")
+    plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="subscriptionsPlan")
     
     start_date = models.DateTimeField(default=timezone.now)
     end_date = models.DateTimeField(blank=True, null=True)
@@ -190,6 +198,28 @@ class Subscription(models.Model):
                 self.company.users.update(is_active=True)   
 
 
+    @property
+    def is_expiring_soon(self):
+        if not self.end_date:
+            return False
+        
+        return (
+            self.status == 'active' and
+            (self.end_date - timezone.now()).days <= 7
+        )
+
+
+    def notify_expiring_soon(self):
+        """Send notifications if subscription is expiring soon"""
+        if self.is_expiring_soon:
+            from .notifications import SubscriptionNotificationManager
+            notification_manager = SubscriptionNotificationManager(self)
+            email_sent = notification_manager.send_email_notification()
+            slack_sent = notification_manager.send_slack_notification()
+            return email_sent or slack_sent
+        return False
+
+
 class User(AbstractUser):
     company = models.ForeignKey("company.Company", on_delete=models.CASCADE, related_name="users")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -254,6 +284,10 @@ class Payment(models.Model):
     class Meta:
         db_table = "payments"
         ordering = ["-payment_date"]
+        indexes = [
+            models.Index(fields=['subscription', 'status']),
+            models.Index(fields=['status','payment_date']),
+        ]
     
     def __str__(self):
         return f"Payment {self.id} - {self.subscription.company.name} - ${self.amount}"

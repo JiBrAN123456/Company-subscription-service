@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .warning { color: #e74c3c; }
+        .button { 
+            background-color: #3498db; 
+            color: white; 
+            padding: 10px 20px; 
+            text-decoration: none; 
+            border-radius: 5px; 
+        }
+    </style>
+</head>
+<body>
+    <h2>Subscription Expiring Soon</h2>
+    <p>Hello,</p>
+    <p>Your subscription for <strong>{{ company_name }}</strong> is expiring in {{ days_left }} days.</p>
+    <p class="warning">Expiration Date: {{ end_date }}</p>
+    <p>Current Plan: {{ plan_name }}</p>
+    <p>
+        <a href="{{ renewal_url }}" class="button">Renew Subscription</a>
+    </p>
+    <p>If you have any questions, please contact our support team.</p>
+</body>
+</html>
