@@ -234,3 +234,13 @@ class Payment(models.Model):
     
     def __str__(self):
         return f"Payment {self.id} - {self.subscription.company.name} - ${self.amount}"
+    
+
+    def validate(self):
+
+        if self.subscription and self.amount > self.subscription.cost_At_signup:
+            raise ValidationError("Payment amount cannot exceed subscription cost at signup.")
+        if self.amount <= 0:
+            raise ValidationError("Payment amount must be positive.") 
+        if self.subscription and self.amount == self.subscription.cost_at_signup:
+            self.status = 'completed'         
