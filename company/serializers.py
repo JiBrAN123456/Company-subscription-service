@@ -7,14 +7,53 @@ from .models import Company, SubscriptionPlan, Subscription, Payment
 
 User = get_user_model()
 
-
 class CompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
-        fields = ['id','name','status', 'notification_email', 'notify_slack',
-                   'slack_webhook_url', 'created_at', 'updated_at', 'notification_before_days']
+        fields = [
+            'id', 'name', 'status', 'created_at', 'updated_at',
+            'notification_email', 'notify_slack', 'slack_webhook_url',
+            'notification_days_before'
+        ]
 
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriptionPlan
+        fields = [
+            'id', 'name', 'billing_cycle', 'pricing_model',
+            'cost', 'user_limit', 'is_active', 'created_at', 
+            'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
 
+    def validate(self, data):
+        # Validate billing cycle
+        valid_billing_cycles = ['monthly', 'yearly']  # Update these based on your model choices
+        if 'billing_cycle' in data and data['billing_cycle'] not in valid_billing_cycles:
+            raise serializers.ValidationError({
+                'billing_cycle': f"Must be one of: {', '.join(valid_billing_cycles)}"
+            })
+
+        # Validate pricing model
+        valid_pricing_models = ['per_user', 'flat_rate']  # Update these based on your model choices
+        if 'pricing_model' in data and data['pricing_model'] not in valid_pricing_models:
+            raise serializers.ValidationError({
+                'pricing_model': f"Must be one of: {', '.join(valid_pricing_models)}"
+            })
+
+        # Validate cost is positive
+        if 'cost' in data and float(data['cost']) <= 0:
+            raise serializers.ValidationError({
+                'cost': "Cost must be greater than 0"
+            })
+
+        # Validate user limit is positive
+        if 'user_limit' in data and data['user_limit'] <= 0:
+            raise serializers.ValidationError({
+                'user_limit': "User limit must be greater than 0"
+            })
+
+        return data
 
 
 
@@ -42,14 +81,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 
-class SubscriptionPlanSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SubscriptionPlan
-        fields = [
-            'id', 'name', 'description', 'pricing_model',
-            'billing_cycle', 'cost', 'user_limit', 
-            'is_active', 'created_at', 'updated_at'
-        ]
+
 
 class SubscriptionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -59,7 +91,6 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             'start_date', 'end_date', 'max_users',
             'cost_at_signup', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['status', 'cost_at_signup']
     
     def validate(self, data):
 
@@ -72,12 +103,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = [
-            'id', 'subscription', 'amount', 'method',
-            'status', 'payment_date', 'notes',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['status']
+        fields = '__all__'
 
     def validate(self, data):
 

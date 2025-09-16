@@ -27,7 +27,7 @@ class Company(models.Model):
     notify_slack = models.BooleanField(default=False)
     slack_webhook_url = models.URLField(null=True, blank = True)
     notification_days_before = models.PositiveIntegerField(default=7)
-
+    
     class Meta:
         db_table = "companies"
         ordering = ["name"]
@@ -109,8 +109,8 @@ class Subscription(models.Model):
         ('suspended', 'Suspended'),
     ]
     
-    company = models.ForeignKey("Company", on_delete=models.CASCADE, related_name="subscribedcompanies")
-    plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="subscriptionsPlan")
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="subscriptions")
+    plan = models.ForeignKey("SubscriptionPlan", on_delete=models.PROTECT, related_name="subscriptions")
     
     start_date = models.DateTimeField(default=timezone.now)
     end_date = models.DateTimeField(blank=True, null=True)
@@ -176,7 +176,37 @@ class Subscription(models.Model):
         """Mark subscription as expired"""
         self.status = 'expired'
         self.save()
+    
 
+    def renew(self):
+        """Create a new subscription based on current one"""
+        # First expire the current subscription
+        self.status = 'expired'
+        self.save()
+
+        # Calculate new dates
+        start_date = timezone.now()
+        if self.plan.billing_cycle == 'monthly':
+            end_date = start_date + relativedelta(months=1)
+        else:
+            end_date = start_date + relativedelta(years=1)
+
+        # Create new subscription
+        new_subscription = Subscription.objects.create(
+            company=self.company,
+            plan=self.plan,
+            status='active',
+            start_date=start_date,
+            end_date=end_date,
+            max_users=self.max_users,
+            cost_at_signup=self.plan.cost
+        )
+
+        # Reactivate company if suspended
+        if self.company.status == 'suspended':
+            self.company.activate()
+
+        return new_subscription
 
     def extend_subscription_after_payment(self,payment):
 
@@ -297,7 +327,7 @@ class Payment(models.Model):
 
     def validate(self):
 
-        if self.subscription and self.amount > self.subscription.cost_At_signup:
+        if self.subscription and self.amount > self.subscription.cost_at_signup:
             raise ValidationError("Payment amount cannot exceed subscription cost at signup.")
         if self.amount <= 0:
             raise ValidationError("Payment amount must be positive.") 
