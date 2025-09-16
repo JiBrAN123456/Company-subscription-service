@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'rest_framework',
-    'users',
+    'company',
 ]
 
 MIDDLEWARE = [
@@ -129,3 +129,9 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
+
+AUTH_USER_MODEL = 'company.User'
+
+
+STRIPE_SECRET_KEY = 'your_stripe_secret_key'
+STRIPE_PUBLIC_KEY = 'your_stripe_public_key'
