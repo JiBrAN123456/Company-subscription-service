@@ -4,6 +4,9 @@ from django.utils import timezone
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
+import stripe
+
+from notes_api import settings 
 
 
 class Company(models.Model):
@@ -167,6 +170,26 @@ class Subscription(models.Model):
         self.save()
 
 
+    def extend_subscription_after_payment(self,payment):
+
+        if payment.status != "completed":
+            raise ValidationError("Cannot extend subscription with incomplete payment.")    
+        
+        if payment.status == "completed":
+            if self.plan.billing_cycle == "monthly":
+                self.end_date += relativedelta(months=1)
+            elif self.plan.billing_cycle == "quarterly":
+                self.end_date += relativedelta(months=3)
+            elif self.plan.billing_cycle == "yearly":
+                self.end_date += relativedelta(years=1)
+            
+            self.status = "active"
+            self.save()
+            
+            if self.company.status == "active":
+                self.company.users.update(is_active=True)   
+
+
 class User(AbstractUser):
     company = models.ForeignKey("company.Company", on_delete=models.CASCADE, related_name="users")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -236,11 +259,55 @@ class Payment(models.Model):
         return f"Payment {self.id} - {self.subscription.company.name} - ${self.amount}"
     
 
+ 
+
     def validate(self):
 
         if self.subscription and self.amount > self.subscription.cost_At_signup:
             raise ValidationError("Payment amount cannot exceed subscription cost at signup.")
         if self.amount <= 0:
             raise ValidationError("Payment amount must be positive.") 
-        if self.subscription and self.amount == self.subscription.cost_at_signup:
-            self.status = 'completed'         
+
+    def process_payment(self):
+
+        try:
+            self.validate()
+
+            if self.method == "credit_card":
+
+                stripe.api_key = settings.STRIPE_SECRET_KEY
+
+                payment_intent = stripe.PaymentIntent.create(
+                    amount=int(self.amount * 100),  # Amount in cents
+                    currency="usd",
+                    payment_method_types=["card"],
+                    description=f"Payment for {self.subscription.company.name} subscription"
+                )
+                
+
+                self.status = 'completed'   
+                self.notes = f"Payment processed via Stripe. Payment Intent ID: {payment_intent.id}"   
+
+            elif self.method == "bank_transfer":
+                pass  # Implement bank transfer logic   
+
+            elif self.method == "UPI":
+                pass # Implement UPI payment logic  
+
+
+            self.save()    
+
+            if self.status == "completed":
+                self.subscription.extend_subscription_after_payment(self)
+
+        except stripe.error.StripeError as e:
+                self.status = 'failed'
+                self.notes = f"Payment failed: {str(e)}"
+                self.save()
+                raise ValidationError(f"Payment processing failed: {str(e)}")
+            
+        except Exception as e:
+                self.status = 'failed'
+                self.notes = f"System error: {str(e)}"
+                self.save()
+                raise    
