@@ -133,5 +133,74 @@ REST_FRAMEWORK = {
 AUTH_USER_MODEL = 'company.User'
 
 
+
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # Or your SMTP server
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'your-email@gmail.com'
+EMAIL_HOST_PASSWORD = 'your-app-specific-password'  # Use app password for Gmail
+DEFAULT_FROM_EMAIL = 'your-email@gmail.com'
+
+# Notification Settings
+NOTIFICATION_SETTINGS = {
+    'SUBSCRIPTION_EXPIRY_DAYS': 7,
+    'ENABLE_SLACK_NOTIFICATIONS': True,
+    'ENABLE_EMAIL_NOTIFICATIONS': True,
+}
+
+# Slack Configuration
+SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/your-webhook-url'
+
+# Site Configuration
+SITE_NAME = 'Your Company Name'
+BASE_URL = 'http://localhost:8000'  # Change in production
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'notifications.log',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'company.notifications': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+
+# Create logs directory if it doesn't exist
+import os
+if not os.path.exists(BASE_DIR / 'logs'):
+    os.makedirs(BASE_DIR / 'logs')
+
+# Template Configuration for Email Templates
+TEMPLATES[0]['DIRS'] = [BASE_DIR / 'templates']  # Update existing TEMPLATES setting
+
+
+
+
+
+
 STRIPE_SECRET_KEY = 'your_stripe_secret_key'
 STRIPE_PUBLIC_KEY = 'your_stripe_public_key'
