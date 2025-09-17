@@ -3,7 +3,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Company, SubscriptionPlan, Subscription, Payment
+from .models import Company, SubscriptionPlan, Subscription, Payment , User
 from .serializers import (
     CompanySerializer, CompanyDetailSerializer,
     UserSerializer, SubscriptionPlanSerializer,
@@ -37,6 +37,15 @@ class CompanyViewset(viewsets.ModelViewSet):
         company.activate()
         return Response({"status": "company activated"}, status=status.HTTP_200_OK)
     
+    @action(detail=True, methods=['get'])
+    def List_active_subscriptions(self):
+        company = self.get_object()
+        subscription = company.active_subscription
+        if not subscription:
+            return Response({"detail": "No active subscription found."}, status=status.HTTP_404_NOT_FOUND)
+        serializer = SubscriptionDetailSerializer(subscription)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+     
 class SubscriptionPlanViewset(viewsets.ModelViewSet):
 
     queryset = SubscriptionPlan.objects.all()
@@ -142,6 +151,13 @@ class SubscriptionViewset(viewsets.ModelViewSet):
         return Response({"status": "subscription suspended"}, status=status.HTTP_200_OK)
 
 
+    def update(self, request, *args, **kwargs):
+        subscription = self.get_object()
+        serializer = self.get_serializer(subscription, data = request.data , partial = True) 
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class PaymentViewset(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
@@ -196,3 +212,50 @@ class PaymentViewset(viewsets.ModelViewSet):
             return Response(
                 {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
             )   
+    
+    @action(detail=False, methods=['get'])
+    def List_payments_for_subscription(self, request):
+        subscription_id = request.query.params("subscription_id")
+        if not subscription_id:
+            return Response(
+                {"error": "subscription_id query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        payments = Payment.objects.filter(subscription_id=subscription_id)
+        serializer = self.get_serializer(payments, many = True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+          
+
+class UserViewset(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Add user for a company"""
+        return super().create(request, *args, **kwargs)
+
+    @action(detail=False, methods=['get'])
+    def by_company(self, request):
+        """List users for a company"""
+        company_id = request.query_params.get("company_id")
+        if not company_id:
+            return Response({"error": "company_id required"}, status=status.HTTP_400_BAD_REQUEST)
+        users = User.objects.filter(company_id=company_id)
+        serializer = self.get_serializer(users, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def suspend(self, request, pk=None):
+        """Suspend a user"""
+        user = self.get_object()
+        user.is_active = False
+        user.save()
+        return Response({"status": "user suspended"}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """Activate a user"""
+        user = self.get_object()
+        user.is_active = True
+        user.save()
+        return Response({"status": "user activated"}, status=status.HTTP_200_OK)
