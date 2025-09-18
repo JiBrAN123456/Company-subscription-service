@@ -13,12 +13,17 @@ from .serializers import (
 from django.core.exceptions import ValidationError
 from django.utils import timezone  
 from dateutil.relativedelta import relativedelta 
+from rest_framework.permissions import IsAdminUser , IsAuthenticated , IsAuthenticatedOrReadOnly
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+
 
 # Create your views here.
 
 class CompanyViewset(viewsets.ModelViewSet):
-    queryset = Company.objects.all()
+    queryset = Company.objects.prefetch_related("subscriptions", "users")
     serializer_class = CompanySerializer
+    permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -27,7 +32,10 @@ class CompanyViewset(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post']) 
     def suspend(self,request, pk = None):
+        
         company = self.get_object()
+        if request.user.company.id != int(company.id) and not request.user.is_superuser:
+               return Response({"error": "Permission denied"}, status=403) 
         company.suspend()
         return Response({"status": "company suspended"}, status=status.HTTP_200_OK)
     
@@ -62,15 +70,17 @@ class SubscriptionPlanViewset(viewsets.ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
+    @method_decorator(cache_page(60 * 60))
     @action(detail=True, methods=['get'])
     def List_active_subscriptions(self,request, pk=None):
         plan = self.get_object()
         subscriptions = plan.subscriptions.filter(status="active")
+        serializer = SubscriptionSerializer(subscriptions ,many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
 class SubscriptionViewset(viewsets.ModelViewSet):
-    queryset = Subscription.objects.all()
+    queryset = Subscription.objects.select_related("company","plan")
     serializer_class = SubscriptionSerializer
 
     def create(self, request, *args, **kwargs):
