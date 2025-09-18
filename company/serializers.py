@@ -63,7 +63,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name'
+        fields = ['id', 'username', 'password', 'email', 'first_name', 'last_name',
                   'company', 'is_active']
         read_only_fields = ['is_active']
 
@@ -131,3 +131,16 @@ class SubscriptionDetailSerializer(SubscriptionSerializer):
 
     class Meta(SubscriptionSerializer.Meta):
         fields = SubscriptionSerializer.Meta.fields + ['payments']
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = "__all__"
+
+    def validate_email(self,value):
+        user_id = self.instance.id if self.instance else None
+        if User.objects.exclude(id=user_id).filter(email=value).exists():
+            raise serializers.ValidationError("Email already exists")
+        return value

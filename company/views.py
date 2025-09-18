@@ -8,7 +8,7 @@ from .serializers import (
     CompanySerializer, CompanyDetailSerializer,
     UserSerializer, SubscriptionPlanSerializer,
     SubscriptionSerializer, SubscriptionDetailSerializer,
-    PaymentSerializer
+    PaymentSerializer, UserUpdateSerializer
 )
 from django.core.exceptions import ValidationError
 from django.utils import timezone  
@@ -259,3 +259,21 @@ class UserViewset(viewsets.ModelViewSet):
         user.is_active = True
         user.save()
         return Response({"status": "user activated"}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def deactivate(self,request,pk = None):
+        user = self.get_object()
+        user.is_active = False
+        user.save()
+        return Response({"message": "user deactivated"}, status=status.Http_200_OK)
+    
+    @action(detail=True, methods=["post"])
+    def update(self, request,*args,**kwargs):
+        user = self.get_object()
+        serializer = UserUpdateSerializer(user, data=request.data,partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UserSerializer(user).data)
+
+        
+
